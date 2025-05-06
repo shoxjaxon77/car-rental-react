@@ -2,109 +2,135 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-// Dummy data (keyinchalik API dan olinadi)
-const cars = [
-  {
-    id: '1',
-    name: 'BMW X5',
-    brand: 'BMW',
-    model: 'X5',
-    year: 2023,
-    seats: 5,
-    price_per_day: 150,
-    image: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=800&q=80',
-    description: 'Luxury SUV with advanced features.'
-  },
-  {
-    id: '2',
-    name: 'Mercedes-Benz C-Class',
-    brand: 'Mercedes',
-    model: 'C-Class',
-    year: 2023,
-    seats: 5,
-    price_per_day: 120,
-    image: 'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?auto=format&fit=crop&w=800&q=80',
-    description: 'Elegant sedan with premium comfort.'
-  },
-  {
-    id: '3',
-    name: 'Audi Q7',
-    brand: 'Audi',
-    model: 'Q7',
-    year: 2023,
-    seats: 7,
-    price_per_day: 180,
-    image: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?auto=format&fit=crop&w=800&q=80',
-    description: 'Spacious luxury SUV with premium features.'
-  },
-  {
-    id: '4',
-    name: 'Toyota Camry',
-    brand: 'Toyota',
-    model: 'Camry',
-    year: 2023,
-    seats: 5,
-    price_per_day: 90,
-    image: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=800&q=80',
-    description: 'Reliable and comfortable sedan.'
-  },
-  {
-    id: '5',
-    name: 'BMW M3',
-    brand: 'BMW',
-    model: 'M3',
-    year: 2023,
-    seats: 5,
-    price_per_day: 200,
-    image: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=800&q=80',
-    description: 'High-performance luxury sports sedan.'
-  },
-  {
-    id: '6',
-    name: 'Mercedes-Benz GLS',
-    brand: 'Mercedes',
-    model: 'GLS',
-    year: 2023,
-    seats: 7,
-    price_per_day: 220,
-    image: 'https://images.unsplash.com/photo-1653417580576-1664b850d70f?auto=format&fit=crop&w=800&q=80',
-    description: 'Full-size luxury SUV with third-row seating.'
-  },
-  {
-    id: '7',
-    name: 'Audi A4',
-    brand: 'Audi',
-    model: 'A4',
-    year: 2023,
-    seats: 5,
-    price_per_day: 130,
-    image: 'https://images.unsplash.com/photo-1606664455348-3e0cd1b46e85?auto=format&fit=crop&w=800&q=80',
-    description: 'Sophisticated sedan with cutting-edge technology.'
-  },
-  {
-    id: '8',
-    name: 'Toyota Land Cruiser',
-    brand: 'Toyota',
-    model: 'Land Cruiser',
-    year: 2023,
-    seats: 8,
-    price_per_day: 170,
-    image: 'https://images.unsplash.com/photo-1594505096846-a6fff0a761c4?auto=format&fit=crop&w=800&q=80',
-    description: 'Legendary SUV with exceptional off-road capability.'
-  }
-];
+type Car = {
+  id: string;
+  name: string;
+  brand: string;
+  model: string;
+  year: number;
+  seats: number;
+  price_per_day: number;
+  image: string;
+  description: string;
+};
 
-// Brendlar ro'yxati
-const brands = ['All', 'BMW', 'Mercedes', 'Audi', 'Toyota'];
+
 
 export default function HomeScreen() {
   const [selectedBrand, setSelectedBrand] = React.useState('All');
+  console.log('Current selected brand:', selectedBrand);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [brands, setBrands] = useState<string[]>(['All']);
+
+  useEffect(() => {
+    fetchBrands();
+    fetchCars();
+  }, []);
+
+  const fetchBrands = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        throw new Error('Avtorizatsiyadan o\'tilmagan');
+      }
+
+      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/brands/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Avtorizatsiyadan o\'tilmagan');
+        }
+        throw new Error('Brandlarni yuklashda xatolik');
+      }
+
+      const data = await response.json();
+      console.log('Brands API response:', data);
+      if (Array.isArray(data)) {
+        const brandNames = ['All', ...data.map((brand: any) => brand.name)];
+        console.log('Setting brands to:', brandNames);
+        setBrands(brandNames);
+      }
+    } catch (error) {
+      console.error('Error fetching brands:', error);
+      // Don't show error to user for brands, just keep 'All' as default
+      setBrands(['All']);
+    }
+  };
+
+  const fetchCars = async () => {
+    try {
+      console.log('Fetching cars...');
+      setLoading(true);
+      setError(null);
+      
+      // Get token from AsyncStorage
+      const token = await AsyncStorage.getItem('userToken');
+      console.log('Token retrieved:', token ? 'Yes' : 'No');
+      if (!token) {
+        throw new Error('Avtorizatsiyadan o\'tilmagan');
+      }
+
+      console.log('Making API request...');
+      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/cars/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Avtorizatsiyadan o\'tilmagan');
+        }
+        throw new Error('Avtomobillarni yuklashda xatolik yuz berdi');
+      }
+
+      const data = await response.json();
+      console.log('API response:', data);
+      
+      if (Array.isArray(data)) {
+        console.log('First car data:', data[0]); // Log first car to see structure
+        setCars(data);
+        console.log('Cars loaded successfully:', data.length, 'cars');
+      } else {
+        console.error('Invalid data format received:', data);
+        throw new Error('Serverdan noto\'g\'ri ma\'lumot formati olindi');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xatolik yuz berdi');
+      if (err instanceof Error && err.message === 'Avtorizatsiyadan o\'tilmagan') {
+        router.replace('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter cars based on selected brand
+  const filteredCars = React.useMemo(() => {
+    console.log('Filtering cars. Selected brand:', selectedBrand);
+    console.log('Available cars:', cars.length);
+    if (selectedBrand === 'All') {
+      return cars;
+    }
+    const filtered = cars.filter(car => car.brand === selectedBrand);
+    console.log('Filtered cars:', filtered.length);
+    return filtered;
+  }, [cars, selectedBrand]);
 
   const menuItems = [
     { id: 'profile', title: 'Profile', icon: 'person.fill' as const, onPress: () => router.push('/profile') },
@@ -113,17 +139,33 @@ export default function HomeScreen() {
     { id: 'settings', title: 'Settings', icon: 'gearshape.fill' as const, onPress: () => router.push('/(tabs)/account') },
   ];
 
-  const renderCarCard = (car: typeof cars[0]) => (
+  const renderCarCard = (car: Car) => (
     <TouchableOpacity
       key={car.id}
       style={styles.carCard}
       onPress={() => router.push(`/detail?id=${car.id}`)}
     >
-      <Image source={{ uri: car.image }} style={styles.carImage} />
+      <Image 
+        source={{ 
+          uri: car.image || 'https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&w=800&q=80'
+        }} 
+        style={styles.carImage}
+      />
       <View style={styles.carInfo}>
-        <ThemedText style={styles.carName}>{car.name}</ThemedText>
-        <ThemedText style={styles.carPrice}>${car.price_per_day}/day</ThemedText>
-        <ThemedText style={styles.carDescription}>{car.description}</ThemedText>
+        <ThemedText style={styles.carName}>{car.brand} {car.model}</ThemedText>
+        <View style={styles.carDetails}>
+          <View style={styles.detailRow}>
+            <IconSymbol name="calendar" size={14} color="#999" />
+            <ThemedText style={styles.detailText}>{car.year}</ThemedText>
+          </View>
+          <View style={styles.detailRow}>
+            <IconSymbol name="person.fill" size={14} color="#999" />
+            <ThemedText style={styles.detailText}>{car.seats} o'rindiq</ThemedText>
+          </View>
+        </View>
+        <ThemedText style={styles.carPrice}>
+          {car.price_per_day.toLocaleString()} so'm / kun
+        </ThemedText>
       </View>
     </TouchableOpacity>
   );
@@ -177,30 +219,68 @@ export default function HomeScreen() {
         style={styles.brandFilter}
         contentContainerStyle={styles.brandFilterContent}
       >
-        {brands.map((brand) => (
-          <TouchableOpacity
-            key={brand}
-            style={[styles.brandButton, selectedBrand === brand && styles.selectedBrandButton]}
-            onPress={() => setSelectedBrand(brand)}
-          >
-            <ThemedText style={[styles.brandText, selectedBrand === brand && styles.selectedBrandText]}>
-              {brand}
-            </ThemedText>
-          </TouchableOpacity>
-        ))}
+        {brands.map((brand) => {
+          const isSelected = selectedBrand === brand;
+          console.log(`Brand: ${brand}, isSelected: ${isSelected}`);
+          return (
+            <TouchableOpacity
+              key={brand}
+              style={[styles.brandButton, isSelected && styles.selectedBrandButton]}
+              onPress={() => {
+                console.log('Setting selected brand to:', brand);
+                setSelectedBrand(brand);
+              }}
+            >
+              <ThemedText style={[styles.brandText, isSelected && styles.selectedBrandText]}>
+                {brand}
+              </ThemedText>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <ScrollView 
         style={styles.carList}
         contentContainerStyle={styles.carListContent}
       >
-        {cars.map(renderCarCard)}
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#FFD600" />
+          </View>
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+          </View>
+        ) : filteredCars.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <ThemedText style={styles.noDataText}>Avtomobillar mavjud emas</ThemedText>
+          </View>
+        ) : (
+          filteredCars.map(renderCarCard)
+        )}
       </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 200,
+    width: '100%',
+  },
+  errorText: {
+    color: '#FF4444',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  noDataText: {
+    color: '#999',
+    fontSize: 16,
+    textAlign: 'center',
+  },
   menuPopup: {
     position: 'absolute',
     top: 120,
@@ -296,19 +376,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    paddingBottom: 100, // Add extra padding at bottom for scrolling
   },
   carCard: {
     backgroundColor: '#333',
     borderRadius: 12,
     marginBottom: 16,
     overflow: 'hidden',
-    width: (width - 48) / 2, // 2 cards per row with 16px spacing
+    width: (width - 32) / 2, // 2 cards per row with less spacing
     marginHorizontal: 8,
+    elevation: 4, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   carImage: {
     width: '100%',
-    height: 140,
+    height: width * 0.3, // Make height proportional to screen width
     resizeMode: 'cover',
+    backgroundColor: '#444',
   },
   carInfo: {
     padding: 12,
@@ -317,17 +404,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 8,
+  },
+  carDetails: {
+    marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#999',
+    marginLeft: 6,
   },
   carPrice: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#FFD600',
     fontWeight: '600',
-    marginBottom: 4,
-  },
-  carDescription: {
-    fontSize: 12,
-    color: '#ccc',
-    lineHeight: 16,
   },
 });
