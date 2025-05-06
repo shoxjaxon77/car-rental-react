@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Dimensions, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -14,9 +15,9 @@ export default function LoginScreen() {
   const { login } = useAuth();
 
   const handleLogin = async () => {
-    console.log('Login started with:', { username, password });
     try {
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/token/', {
+      // Login qilish va token olish
+      const loginResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/token/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -27,22 +28,38 @@ export default function LoginScreen() {
         }),
       });
 
-      const responseData = await response.text();
-      console.log('Response status:', response.status);
-      console.log('Response data:', responseData);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (response.ok) {
-        const data = JSON.parse(responseData);
-        console.log('Parsed data:', data);
-        // Token ni saqlash va login qilish
-        console.log('Trying to save token:', data.access);
-        await login(data.access);
-        console.log('Token saved, redirecting...');
-      } else {
-        // Login xatoligi yuz bersa
+      if (!loginResponse.ok) {
         alert('Username yoki parol noto\'g\'ri');
+        return;
       }
+
+      const loginData = await loginResponse.json();
+      const token = loginData.access;
+
+      // Foydalanuvchi ma'lumotlarini olish
+      const userResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/me/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!userResponse.ok) {
+        alert('Foydalanuvchi ma\'lumotlarini olishda xatolik');
+        return;
+      }
+
+      const userData = await userResponse.json();
+      
+      // Foydalanuvchi ma'lumotlarini saqlash
+      await AsyncStorage.setItem('userData', JSON.stringify({
+        username: userData.username,
+        email: userData.email,
+        phone_number: userData.phone_number
+      }));
+
+      // Token ni saqlash va login qilish
+      await login(token);
     } catch (error) {
       alert('Xatolik yuz berdi. Iltimos qaytadan urinib ko\'ring');
       console.error('Login error:', error);

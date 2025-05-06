@@ -2,15 +2,10 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-
-// Dummy user data (keyinchalik API dan olinadi)
-const user = {
-  name: 'Shoxjaxon',
-  email: 'shox.x@example.com',
-  avatar: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=200&q=80',
-};
+import { useAuth } from '@/hooks/useAuth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const settings = [
   {
@@ -34,24 +29,50 @@ const settings = [
 ] as const;
 
 export default function AccountScreen() {
+  const { logout } = useAuth();
+  const [userData, setUserData] = useState({
+    username: '',
+    email: '',
+    phone_number: ''
+  });
+
+  useEffect(() => {
+    const getUserData = async () => {
+      try {
+        const userDataString = await AsyncStorage.getItem('userData');
+        if (userDataString) {
+          const parsedUserData = JSON.parse(userDataString);
+          setUserData(parsedUserData);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    getUserData();
+  }, []);
+
   const handleLogout = () => {
-    // TODO: Implement logout logic
-    router.replace('/(tabs)');
+    logout();
   };
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.header}>
-        <ThemedText style={styles.title}>Account</ThemedText>
+        <ThemedText style={styles.title}>Profile</ThemedText>
       </View>
 
       <ScrollView style={styles.content}>
         {/* User Profile Section */}
         <View style={styles.profileSection}>
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
+          <Image 
+            source={require('@/assets/images/avatar.jpg')} 
+            style={styles.avatar} 
+          />
           <View style={styles.userInfo}>
-            <ThemedText style={styles.userName}>{user.name}</ThemedText>
-            <ThemedText style={styles.userEmail}>{user.email}</ThemedText>
+            <ThemedText style={styles.userName}>{userData.username}</ThemedText>
+            <ThemedText style={styles.userEmail}>{userData.email}</ThemedText>
+            <ThemedText style={styles.userPhone}>{userData.phone_number}</ThemedText>
           </View>
         </View>
 
@@ -124,6 +145,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   userEmail: {
+    fontSize: 16,
+    color: '#999',
+    marginBottom: 4,
+  },
+  userPhone: {
     fontSize: 16,
     color: '#999',
   },

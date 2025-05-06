@@ -3,6 +3,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 
 export default function SignupScreen() {
@@ -89,7 +90,31 @@ export default function SignupScreen() {
 
       if (loginResponse.ok) {
         const data = await loginResponse.json();
-        await login(data.access);
+        const token = data.access;
+
+        // Foydalanuvchi ma'lumotlarini olish
+        const userResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/me/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!userResponse.ok) {
+          alert('Foydalanuvchi ma\'lumotlarini olishda xatolik');
+          return;
+        }
+
+        const userData = await userResponse.json();
+        
+        // Foydalanuvchi ma'lumotlarini saqlash
+        await AsyncStorage.setItem('userData', JSON.stringify({
+          username: userData.username,
+          email: userData.email,
+          phone_number: userData.phone_number
+        }));
+
+        await login(token);
       } else {
         console.error('Login failed after registration');
         alert('Ro\'yxatdan o\'tish muvaffaqiyatli, lekin tizimga kirishda xatolik yuz berdi');
