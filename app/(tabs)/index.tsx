@@ -140,32 +140,28 @@ export default function HomeScreen() {
   ];
 
   const renderCarCard = (car: Car) => (
-    <TouchableOpacity
-      key={car.id}
+    <TouchableOpacity 
+      key={car.id} 
       style={styles.carCard}
-      onPress={() => router.push(`/detail?id=${car.id}`)}
+      onPress={() => router.push(`/car-detail?id=${car.id}`)}
     >
-      <Image 
-        source={{ 
-          uri: car.image || 'https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&w=800&q=80'
-        }} 
+      <Image
+        source={{ uri: car.image }}
         style={styles.carImage}
       />
       <View style={styles.carInfo}>
         <ThemedText style={styles.carName}>{car.brand} {car.model}</ThemedText>
         <View style={styles.carDetails}>
           <View style={styles.detailRow}>
-            <IconSymbol name="calendar" size={14} color="#999" />
+            <IconSymbol name="calendar" size={16} color="#999" />
             <ThemedText style={styles.detailText}>{car.year}</ThemedText>
           </View>
           <View style={styles.detailRow}>
-            <IconSymbol name="person.fill" size={14} color="#999" />
-            <ThemedText style={styles.detailText}>{car.seats} o'rindiq</ThemedText>
+            <IconSymbol name="person.fill" size={16} color="#999" />
+            <ThemedText style={styles.detailText}>{car.seats} seats</ThemedText>
           </View>
         </View>
-        <ThemedText style={styles.carPrice}>
-          {car.price_per_day.toLocaleString()} so'm / kun
-        </ThemedText>
+        <ThemedText style={styles.carPrice}>${car.price_per_day}/day</ThemedText>
       </View>
     </TouchableOpacity>
   );
