@@ -1,10 +1,10 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/hooks/useAuth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Dimensions, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -16,8 +16,15 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
+      if (!username || !password) {
+        alert('Iltimos, username va parolni kiriting');
+        return;
+      }
+
       // Login qilish va token olish
-      const loginResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/token/', {
+      console.log('Login ma\'lumotlari:', { username });
+      
+      const loginResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/token/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -28,56 +35,99 @@ export default function LoginScreen() {
         }),
       });
 
-      if (!loginResponse.ok) {
-        alert('Username yoki parol noto\'g\'ri');
+      console.log('Login javob holati:', loginResponse.status);
+      
+      const responseText = await loginResponse.text();
+      console.log('Javob:', responseText);
+      
+      let loginData;
+      try {
+        loginData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('JSON parse error:', e);
+        alert('Server javobini qayta ishlashda xatolik');
         return;
       }
 
-      const loginData = await loginResponse.json();
+      if (!loginResponse.ok) {
+        alert(loginData.detail || 'Username yoki parol noto\'g\'ri');
+        return;
+      }
+
       const token = loginData.access;
+      console.log('Token olingan:', token ? 'Ha' : 'Yo\'q');
 
       // Foydalanuvchi ma'lumotlarini olish
-      const userResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/me/', {
+      const userResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/me/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('Foydalanuvchi ma\'lumotlari holati:', userResponse.status);
+      
       if (!userResponse.ok) {
+        const errorText = await userResponse.text();
+        console.error('User info error:', errorText);
         alert('Foydalanuvchi ma\'lumotlarini olishda xatolik');
         return;
       }
 
-      const userData = await userResponse.json();
+      const userDataText = await userResponse.text();
+      console.log('Foydalanuvchi ma\'lumotlari:', userDataText);
+      
+      let userDataResponse;
+      try {
+        userDataResponse = JSON.parse(userDataText);
+      } catch (e) {
+        console.error('User data parse error:', e);
+        alert('Foydalanuvchi ma\'lumotlarini qayta ishlashda xatolik');
+        return;
+      }
+      
+      if (!userDataResponse.success) {
+        alert('Foydalanuvchi ma\'lumotlarini olishda xatolik');
+        return;
+      }
+
+      const userData = userDataResponse.data;
       
       // Foydalanuvchi ma'lumotlarini saqlash
-      await AsyncStorage.setItem('userData', JSON.stringify({
+      const userDataToSave = {
         username: userData.username,
         email: userData.email,
-        phone_number: userData.phone_number
-      }));
+        phone_number: userData.phone_number,
+        first_name: userData.first_name,
+        last_name: userData.last_name
+      };
+      
+      console.log('Foydalanuvchi ma\'lumotlari saqlanmoqda:', userDataToSave);
+      await AsyncStorage.setItem('userData', JSON.stringify(userDataToSave));
 
       // Token ni saqlash va login qilish
+      console.log('Token saqlanmoqda va tizimga kirilmoqda');
+      await AsyncStorage.setItem('userToken', token);
       await login(token);
     } catch (error) {
-      alert('Xatolik yuz berdi. Iltimos qaytadan urinib ko\'ring');
-      console.error('Login error:', error);
+      console.error('Login error details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Noma\'lum xatolik';
+      alert(`Xatolik yuz berdi: ${errorMessage}`);
     }
   };
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.content}>
-        <ThemedText style={styles.title}>Welcome Back!</ThemedText>
-        <ThemedText style={styles.subtitle}>Sign in to continue</ThemedText>
+        <ThemedText style={styles.title}>Xush kelibsiz!</ThemedText>
+        <ThemedText style={styles.subtitle}>Davom etish uchun tizimga kiring</ThemedText>
 
         <View style={styles.form}>
           <View style={styles.inputContainer}>
-            <ThemedText style={styles.label}>Username</ThemedText>
+            <ThemedText style={styles.label}>Login</ThemedText>
             <TextInput
               style={styles.input}
-              placeholder="Enter your username"
+              placeholder="Loginingizni kiriting"
               placeholderTextColor="#666"
               value={username}
               onChangeText={setUsername}
@@ -86,10 +136,10 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputContainer}>
-            <ThemedText style={styles.label}>Password</ThemedText>
+            <ThemedText style={styles.label}>Parol</ThemedText>
             <TextInput
               style={styles.input}
-              placeholder="Enter your password"
+              placeholder="Parolingizni kiriting"
               placeholderTextColor="#666"
               value={password}
               onChangeText={setPassword}
@@ -98,20 +148,20 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity style={styles.forgotPassword}>
-            <ThemedText style={styles.forgotPasswordText}>Forgot Password?</ThemedText>
+            <ThemedText style={styles.forgotPasswordText}>Parolni unutdingizmi?</ThemedText>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.loginButton}
             onPress={handleLogin}
           >
-            <ThemedText style={styles.loginButtonText}>Sign In</ThemedText>
+            <ThemedText style={styles.loginButtonText}>Kirish</ThemedText>
           </TouchableOpacity>
 
           <View style={styles.signupContainer}>
-            <ThemedText style={styles.signupText}>Don't have an account? </ThemedText>
-            <TouchableOpacity onPress={() => router.replace('/signup')}>
-              <ThemedText style={styles.signupLink}>Sign Up</ThemedText>
+            <ThemedText style={styles.signupText}>Hisobingiz yo'qmi? </ThemedText>
+            <TouchableOpacity onPress={() => router.replace('/register')}>
+              <ThemedText style={styles.signupLink}>Ro'yxatdan o'tish</ThemedText>
             </TouchableOpacity>
           </View>
         </View>

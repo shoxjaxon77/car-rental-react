@@ -1,17 +1,18 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import { router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
-type Car = {
+interface Car {
   id: string;
   name: string;
-  brand: string;
+  brand: number;
+  brand_name: string;
   model: string;
   year: number;
   seats: number;
@@ -20,16 +21,20 @@ type Car = {
   description: string;
 };
 
-
-
 export default function HomeScreen() {
   const [selectedBrand, setSelectedBrand] = React.useState('All');
-  console.log('Current selected brand:', selectedBrand);
   const [menuVisible, setMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cars, setCars] = useState<Car[]>([]);
   const [brands, setBrands] = useState<string[]>(['All']);
+
+  const filteredCars = React.useMemo(() => {
+    return cars.filter(car => {
+      if (selectedBrand === 'All') return true;
+      return car.brand_name === selectedBrand;
+    });
+  }, [cars, selectedBrand]);
 
   useEffect(() => {
     fetchBrands();
@@ -43,49 +48,108 @@ export default function HomeScreen() {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/brands/', {
+      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/brands/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('So\'rov holati:', response.status);
+      console.log('So\'rov ma\'lumotlari:', response.headers);
+
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Avtorizatsiyadan o\'tilmagan');
         }
-        throw new Error('Brandlarni yuklashda xatolik');
+        const responseText = await response.text();
+        console.log('Xatolik javobi:', responseText);
+        
+        try {
+          const errorData = JSON.parse(responseText);
+          throw new Error(errorData.detail || 'Avtomobil brendlarini yuklashda xatolik');
+        } catch (parseError) {
+          throw new Error(`Server xatosi: ${responseText}`);
+        }
       }
 
-      const data = await response.json();
-      console.log('Brands API response:', data);
-      if (Array.isArray(data)) {
-        const brandNames = ['All', ...data.map((brand: any) => brand.name)];
-        console.log('Setting brands to:', brandNames);
-        setBrands(brandNames);
+      const responseText = await response.text();
+      console.log('Javob:', responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON o\'qish xatosi:', parseError);
+        throw new Error(`Ma\'lumotlarni o\'qishda xatolik: ${responseText.substring(0, 100)}...`);
+      }
+      
+      // API response ni tekshirish
+      if (data && typeof data === 'object') {
+        let brandsList: string[] = [];
+        
+        interface Brand {
+          name: string;
+          [key: string]: any;
+        }
+
+        const isBrand = (brand: any): brand is Brand => {
+          return brand && typeof brand === 'object' && typeof brand.name === 'string';
+        };
+
+        console.log('API javob tuzilishi:', JSON.stringify(data, null, 2));
+
+        // results massivini tekshirish
+        if (Array.isArray(data.results)) {
+          brandsList = data.results
+            .filter(isBrand)
+            .map((brand: Brand) => brand.name);
+        }
+        // brands massivini tekshirish
+        else if (Array.isArray(data.brands)) {
+          brandsList = data.brands
+            .filter(isBrand)
+            .map((brand: Brand) => brand.name);
+        }
+        // to'g'ridan-to'g'ri massiv kelgan bo'lsa
+        else if (Array.isArray(data)) {
+          brandsList = data
+            .filter(isBrand)
+            .map((brand: Brand) => brand.name);
+        }
+
+        console.log('Parsed brands list:', brandsList);
+
+        // Dublikatlarni olib tashlash va saralash
+        const uniqueBrands = [...new Set(brandsList)].sort();
+        setBrands(['All', ...uniqueBrands]);
+      } else {
+        throw new Error('Serverdan noto\'g\'ri ma\'lumot formati olindi');
       }
     } catch (error) {
       console.error('Error fetching brands:', error);
-      // Don't show error to user for brands, just keep 'All' as default
+      // Xatolik bo'lsa ham 'All' ni ko'rsatamiz
       setBrands(['All']);
+      
+      if (error instanceof Error && error.message === 'Avtorizatsiyadan o\'tilmagan') {
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('userData');
+        router.replace('/login');
+      }
     }
   };
 
   const fetchCars = async () => {
     try {
-      console.log('Fetching cars...');
       setLoading(true);
       setError(null);
       
-      // Get token from AsyncStorage
       const token = await AsyncStorage.getItem('userToken');
-      console.log('Token retrieved:', token ? 'Yes' : 'No');
       if (!token) {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      console.log('Making API request...');
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/cars/', {
+      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/cars/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -96,23 +160,38 @@ export default function HomeScreen() {
         if (response.status === 401) {
           throw new Error('Avtorizatsiyadan o\'tilmagan');
         }
-        throw new Error('Avtomobillarni yuklashda xatolik yuz berdi');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Avtomobillarni yuklashda xatolik yuz berdi');
       }
 
       const data = await response.json();
-      console.log('API response:', data);
       
       if (Array.isArray(data)) {
-        console.log('First car data:', data[0]); // Log first car to see structure
-        setCars(data);
-        console.log('Cars loaded successfully:', data.length, 'cars');
+        // API dan kelgan ma'lumotlarni Car tipiga moslashtirish
+        const formattedCars: Car[] = data.map((car: any) => ({
+          id: car.id?.toString() || '',
+          name: car.name || '',
+          brand: car.brand || '',
+          brand_name: car.brand_name || '',
+          model: car.model || '',
+          year: parseInt(car.year) || 0,
+          seats: parseInt(car.seats) || 0,
+          price_per_day: parseFloat(car.price_per_day) || 0,
+          image: car.image || '',
+          description: car.description || ''
+        }));
+        
+        setCars(formattedCars);
       } else {
-        console.error('Invalid data format received:', data);
         throw new Error('Serverdan noto\'g\'ri ma\'lumot formati olindi');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Xatolik yuz berdi');
-      if (err instanceof Error && err.message === 'Avtorizatsiyadan o\'tilmagan') {
+      const errorMessage = err instanceof Error ? err.message : 'Xatolik yuz berdi';
+      setError(errorMessage);
+      
+      if (errorMessage === 'Avtorizatsiyadan o\'tilmagan') {
+        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('userData');
         router.replace('/login');
       }
     } finally {
@@ -120,37 +199,33 @@ export default function HomeScreen() {
     }
   };
 
-  // Filter cars based on selected brand
-  const filteredCars = React.useMemo(() => {
-    console.log('Filtering cars. Selected brand:', selectedBrand);
-    console.log('Available cars:', cars.length);
-    if (selectedBrand === 'All') {
-      return cars;
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('userToken');
+      router.replace('/login');
+    } catch (error) {
+      console.error('Tizimdan chiqishda xatolik:', error);
+      Alert.alert('Xatolik', 'Tizimdan chiqishda xatolik yuz berdi');
     }
-    const filtered = cars.filter(car => car.brand === selectedBrand);
-    console.log('Filtered cars:', filtered.length);
-    return filtered;
-  }, [cars, selectedBrand]);
+  };
 
-  const menuItems = [
-    { id: 'profile', title: 'Profile', icon: 'person.fill' as const, onPress: () => router.push('/profile') },
-    { id: 'favorites', title: 'Favorite Cars', icon: 'heart.fill' as const, onPress: () => router.push('/(tabs)') },
-    { id: 'bookings', title: 'My Bookings', icon: 'calendar' as const, onPress: () => router.push('/(tabs)/bookings') },
-    { id: 'settings', title: 'Settings', icon: 'gearshape.fill' as const, onPress: () => router.push('/(tabs)/account') },
-  ];
+  const handleCarPress = (carId: string) => {
+    router.push(`/car-detail?id=${carId}`);
+    console.log('Avtomobil tanlandi:', carId);
+  };
 
   const renderCarCard = (car: Car) => (
     <TouchableOpacity 
       key={car.id} 
       style={styles.carCard}
-      onPress={() => router.push(`/car-detail?id=${car.id}`)}
+      onPress={() => handleCarPress(car.id)}
     >
       <Image
         source={{ uri: car.image }}
         style={styles.carImage}
       />
       <View style={styles.carInfo}>
-        <ThemedText style={styles.carName}>{car.brand} {car.model}</ThemedText>
+        <ThemedText style={styles.carName}>{car.brand_name} {car.model}</ThemedText>
         <View style={styles.carDetails}>
           <View style={styles.detailRow}>
             <IconSymbol name="calendar" size={16} color="#999" />
@@ -158,13 +233,21 @@ export default function HomeScreen() {
           </View>
           <View style={styles.detailRow}>
             <IconSymbol name="person.fill" size={16} color="#999" />
-            <ThemedText style={styles.detailText}>{car.seats} seats</ThemedText>
+            <ThemedText style={styles.detailText}>{car.seats} o'rindiq</ThemedText>
           </View>
         </View>
-        <ThemedText style={styles.carPrice}>${car.price_per_day}/day</ThemedText>
+        <ThemedText style={styles.carPrice}>{car.price_per_day.toLocaleString()} so'm/kun</ThemedText>
       </View>
     </TouchableOpacity>
   );
+
+  const menuItems = [
+    { id: 'profile', title: 'Profil', icon: 'person.fill' as const, onPress: () => router.push('/profile') },
+    { id: 'favorites', title: 'Sevimli avtomobillar', icon: 'heart.fill' as const, onPress: () => router.push('/(tabs)') },
+    { id: 'bookings', title: 'Mening bronlarim', icon: 'calendar' as const, onPress: () => router.push('/(tabs)/bookings') },
+    { id: 'settings', title: 'Sozlamalar', icon: 'gearshape.fill' as const, onPress: () => router.push('/(tabs)/profile') },
+    { id: 'logout', title: 'Chiqish', icon: 'rectangle.portrait.and.arrow.right' as const, onPress: handleLogout },
+  ];
 
   return (
     <ThemedView style={styles.container}>
@@ -172,7 +255,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.profileButton}
-          onPress={() => router.push('/account')}
+          onPress={() => router.push('/profile')}
         >
           <Image 
             source={require('../../assets/images/avatar.jpg')} 
@@ -180,7 +263,7 @@ export default function HomeScreen() {
           />
         </TouchableOpacity>
 
-        <ThemedText style={styles.appName}>Car Rental</ThemedText>
+        <ThemedText style={styles.appName}>Avtomobil ijarasi</ThemedText>
 
         <TouchableOpacity 
           style={styles.menuButton}
@@ -215,24 +298,17 @@ export default function HomeScreen() {
         style={styles.brandFilter}
         contentContainerStyle={styles.brandFilterContent}
       >
-        {brands.map((brand) => {
-          const isSelected = selectedBrand === brand;
-          console.log(`Brand: ${brand}, isSelected: ${isSelected}`);
-          return (
-            <TouchableOpacity
-              key={brand}
-              style={[styles.brandButton, isSelected && styles.selectedBrandButton]}
-              onPress={() => {
-                console.log('Setting selected brand to:', brand);
-                setSelectedBrand(brand);
-              }}
-            >
-              <ThemedText style={[styles.brandText, isSelected && styles.selectedBrandText]}>
-                {brand}
-              </ThemedText>
-            </TouchableOpacity>
-          );
-        })}
+        {brands.map((brand) => (
+          <TouchableOpacity
+            key={brand}
+            style={[styles.brandButton, selectedBrand === brand && styles.selectedBrandButton]}
+            onPress={() => setSelectedBrand(brand)}
+          >
+            <ThemedText style={[styles.brandText, selectedBrand === brand && styles.selectedBrandText]}>
+              {brand}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
 
       <ScrollView 
@@ -245,7 +321,7 @@ export default function HomeScreen() {
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
+            <ThemedText style={styles.errorText}>Avtomobillarni yuklashda xatolik</ThemedText>
           </View>
         ) : filteredCars.length === 0 ? (
           <View style={styles.centerContainer}>
@@ -368,33 +444,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   carListContent: {
-    padding: 8,
+    padding: 16,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingBottom: 100, // Add extra padding at bottom for scrolling
+    gap: 16,
+    paddingBottom: 100,
   },
   carCard: {
-    backgroundColor: '#333',
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
     overflow: 'hidden',
-    width: (width - 32) / 2, // 2 cards per row with less spacing
-    marginHorizontal: 8,
-    elevation: 4, // Android shadow
-    shadowColor: '#000', // iOS shadow
+    width: (width - 48) / 2,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+    elevation: 3,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   carImage: {
     width: '100%',
-    height: width * 0.3, // Make height proportional to screen width
+    height: width * 0.25,
     resizeMode: 'cover',
-    backgroundColor: '#444',
+    backgroundColor: '#2C2C2E',
   },
   carInfo: {
     padding: 12,
+    gap: 8,
   },
   carName: {
     fontSize: 16,

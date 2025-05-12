@@ -1,21 +1,25 @@
-import { View, Image, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, ImageStyle, ScrollView, StyleSheet, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 
-type Car = {
+const { width } = Dimensions.get('window');
+
+interface Car {
   id: string;
-  name: string;
-  brand: string;
+  brand: number;
+  brand_name: string;
   model: string;
   year: number;
   seats: number;
-  price_per_day: number;
-  image: string;
+  price_per_day: string;
+  photo: string | null;
   description: string;
+  available_count: number;
+  is_available: boolean;
 };
 
 export default function CarDetailScreen() {
@@ -38,7 +42,7 @@ export default function CarDetailScreen() {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      const response = await fetch(`https://car-rental-api-gyfw.onrender.com/api/v1/cars/cars/${id}/`, {
+      const response = await fetch(`https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/cars/${id}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -53,7 +57,31 @@ export default function CarDetailScreen() {
       }
 
       const data = await response.json();
-      setCar(data);
+      
+      // Brand ma'lumotlarini olish
+      let brandName = '';
+      if (data.brand) {
+        try {
+          const brandResponse = await fetch(`https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/brands/${data.brand}/`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (brandResponse.ok) {
+            const brandData = await brandResponse.json();
+            brandName = brandData.brand_name || brandData.name || '';
+          }
+        } catch (error) {
+          console.error('Error fetching brand:', error);
+        }
+      }
+      
+      setCar({
+        ...data,
+        brandName: brandName
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xatolik yuz berdi');
       if (err instanceof Error && err.message === 'Avtorizatsiyadan o\'tilmagan') {
@@ -82,133 +110,188 @@ export default function CarDetailScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: car.image }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+          {car.photo ? (
+            <Image
+              source={{ uri: car.photo }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.image, { backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' }]}>
+              <IconSymbol name="house.fill" size={48} color="#666" />
+            </View>
+          )}
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <IconSymbol name="chevron.left.forwardslash.chevron.right" size={24} color="#FFD600" />
+          </TouchableOpacity>
         </View>
+
         <View style={styles.contentContainer}>
-          <ThemedText style={styles.brand}>{car.brand}</ThemedText>
-          <ThemedText style={styles.name}>{car.model}</ThemedText>
+          <View style={styles.priceContainer}>
+            <ThemedText style={styles.priceLabel}>Narxi</ThemedText>
+            <ThemedText style={styles.price}>{Number(car.price_per_day).toLocaleString()} so'm/kun</ThemedText>
+          </View>
+
+          <View style={styles.titleContainer}>
+            <ThemedText style={styles.brandText}>{car.brand_name}</ThemedText>
+            <ThemedText style={styles.modelText}>{car.model}</ThemedText>
+          </View>
           
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
-              <IconSymbol name="calendar" size={20} color="#999" />
-              <ThemedText style={styles.detailText}>{car.year}</ThemedText>
+              <IconSymbol name="calendar" size={20} color="#FFD600" />
+              <ThemedText style={styles.detailText}>{car.year}-yil</ThemedText>
             </View>
+
             <View style={styles.detailRow}>
-              <IconSymbol name="person.fill" size={20} color="#999" />
+              <IconSymbol name="person.fill" size={20} color="#FFD600" />
               <ThemedText style={styles.detailText}>{car.seats} o'rindiq</ThemedText>
             </View>
           </View>
 
-          <ThemedText style={styles.price}>
-            {car.price_per_day.toLocaleString()} so'm / kun
-          </ThemedText>
-          
-          <ThemedText style={styles.sectionTitle}>Ta'rif</ThemedText>
-          <ThemedText style={styles.description}>{car.description}</ThemedText>
+          <View style={styles.descriptionContainer}>
+            <ThemedText style={styles.descriptionTitle}>Tavsif</ThemedText>
+            <ThemedText style={styles.descriptionText}>{car.description || 'Tavsif mavjud emas'}</ThemedText>
+          </View>
         </View>
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.bookButton} onPress={() => {/* TODO: Add booking logic */}}>
-          <ThemedText style={styles.bookButtonText}>Bron qilish</ThemedText>
+        <TouchableOpacity 
+          style={styles.rentButton} 
+          onPress={() => router.push(`/rent?id=${car.id}`)}
+        >
+          <ThemedText style={styles.rentButtonText}>Ijaraga olish</ThemedText>
         </TouchableOpacity>
       </View>
     </ThemedView>
   );
 }
 
-const styles = StyleSheet.create({
-  imageContainer: {
-    width: '100%',
-    height: 250,
-    backgroundColor: '#333',
-  },
+const styles = StyleSheet.create({  
   container: {
     flex: 1,
-  },
+  } as ViewStyle,
+  scrollContent: {
+    flexGrow: 1,
+  } as ViewStyle,
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as ViewStyle,
   errorText: {
-    color: '#FF4444',
     fontSize: 16,
+    color: 'red',
     textAlign: 'center',
-  },
+  } as TextStyle,
+  imageContainer: {
+    width: width,
+    height: width * 0.7,
+    backgroundColor: '#2C2C2E',
+    position: 'relative',
+  } as ViewStyle,
   image: {
     width: '100%',
     height: '100%',
-  },
+  } as ImageStyle,
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+    zIndex: 1,
+  } as ViewStyle,
   contentContainer: {
-    padding: 16,
-  },
-  brand: {
-    fontSize: 18,
-    color: '#999',
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  detailsContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 24,
-  },
-  detailText: {
-    fontSize: 16,
-    color: '#999',
-    marginLeft: 8,
-  },
+    flex: 1,
+    padding: 20,
+  } as ViewStyle,
+  priceContainer: {
+    backgroundColor: '#FFD600',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: -30,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  } as ViewStyle,
+  priceLabel: {
+    fontSize: 14,
+    color: '#000',
+  } as TextStyle,
   price: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFD600',
-    marginBottom: 24,
-  },
-  sectionTitle: {
+    color: '#000',
+    marginTop: 4,
+  } as TextStyle,
+  titleContainer: {
+    marginTop: 20,
+  } as ViewStyle,
+  brandText: {
+    fontSize: 20,
+    color: '#999',
+  } as TextStyle,
+  modelText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginTop: 5,
+  } as TextStyle,
+  detailsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginTop: 20,
+    backgroundColor: 'rgba(255, 214, 0, 0.1)',
+    padding: 15,
+    borderRadius: 10,
+  } as ViewStyle,
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 30,
+  } as ViewStyle,
+  detailText: {
+    marginLeft: 8,
+    fontSize: 16,
+  } as TextStyle,
+  descriptionContainer: {
+    marginTop: 25,
+  } as ViewStyle,
+  descriptionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  description: {
+    marginBottom: 10,
+  } as TextStyle,
+  descriptionText: {
     fontSize: 16,
     lineHeight: 24,
     color: '#999',
-    marginBottom: 100, // Add space for bottom bar
-  },
+  } as TextStyle,
   bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#222',
-    padding: 16,
+    padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#333',
-  },
-  bookButton: {
+    backgroundColor: '#1C1C1E',
+  } as ViewStyle,
+  rentButton: {
     backgroundColor: '#FFD600',
-    paddingVertical: 16,
-    borderRadius: 12,
+    padding: 15,
+    borderRadius: 10,
     alignItems: 'center',
-  },
-  bookButtonText: {
-    color: '#222',
+  } as ViewStyle,
+  rentButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
-  },
+    color: '#000',
+  } as TextStyle,
 });

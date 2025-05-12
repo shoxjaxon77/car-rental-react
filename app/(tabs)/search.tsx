@@ -2,87 +2,171 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-// Dummy data (keyinchalik API dan olinadi)
-const cars = [
-  {
-    id: '1',
-    name: 'BMW X5',
-    brand: 'BMW',
-    model: 'X5',
-    year: 2023,
-    seats: 5,
-    price_per_day: 150,
-    image: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=800&q=80',
-    description: 'Luxury SUV with advanced features.'
-  },
-  {
-    id: '2',
-    name: 'Mercedes-Benz C-Class',
-    brand: 'Mercedes',
-    model: 'C-Class',
-    year: 2023,
-    seats: 5,
-    price_per_day: 120,
-    image: 'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?auto=format&fit=crop&w=800&q=80',
-    description: 'Elegant sedan with premium comfort.'
-  },
-];
-
-// Filter options
-const brands = ['All', 'BMW', 'Mercedes', 'Audi', 'Toyota'];
-const priceRanges = ['All', '$0-50', '$51-100', '$101-150', '$151+'];
-const seatOptions = ['All', '2', '4', '5', '7+'];
+interface Car {
+  id: string;
+  brand: number;
+  brand_name: string;
+  model: string;
+  year: number;
+  seats: number;
+  price_per_day: string;
+  photo: string | null;
+  description: string;
+  available_count: number;
+  is_available: boolean;
+};
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState('All');
-  const [selectedPrice, setSelectedPrice] = useState('All');
-  const [selectedSeats, setSelectedSeats] = useState('All');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cars, setCars] = useState<Car[]>([]);
 
-  const renderCarCard = (car: typeof cars[0]) => (
+  const searchCars = async () => {
+    if (!searchQuery.trim()) {
+      setCars([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        throw new Error('Avtorizatsiyadan o\'tilmagan');
+      }
+
+      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/cars/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Avtorizatsiyadan o\'tilmagan');
+        }
+        throw new Error('Qidirishda xatolik yuz berdi');
+      }
+
+      const data = await response.json();
+      console.log('API Response:', data);
+
+      if (Array.isArray(data)) {
+        const query = searchQuery.toLowerCase();
+        console.log('Search Query:', query);
+
+        const filteredCars = data.filter(car => {
+          const brand = car.brand_name?.toLowerCase() || '';
+          const model = car.model?.toLowerCase() || '';
+          const matches = brand.includes(query) || model.includes(query);
+          console.log('Car:', car.brand_name, car.model, 'Matches:', matches);
+          return matches;
+        });
+
+        console.log('Filtered Cars:', filteredCars);
+        setCars(filteredCars);
+      } else {
+        console.error('Invalid data format:', data);
+        throw new Error('Serverdan noto\'g\'ri ma\'lumot formati olindi');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xatolik yuz berdi');
+      if (err instanceof Error && err.message === 'Avtorizatsiyadan o\'tilmagan') {
+        router.replace('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderCarCard = (car: Car) => (
     <TouchableOpacity
       key={car.id}
       style={styles.carCard}
-      onPress={() => router.push(`/detail?id=${car.id}`)}
+      onPress={() => router.push(`/car-detail?id=${car.id}`)}
     >
-      <Image source={{ uri: car.image }} style={styles.carImage} />
+      <View style={[styles.carImage, { backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' }]}>
+        {car.photo ? (
+          <Image 
+            source={{ uri: car.photo }}
+            style={styles.carImage}
+          />
+        ) : (
+          <IconSymbol name="house.fill" size={32} color="#666" />
+        )}
+      </View>
       <View style={styles.carInfo}>
-        <ThemedText style={styles.carName}>{car.name}</ThemedText>
-        <ThemedText style={styles.carPrice}>${car.price_per_day}/day</ThemedText>
-        <ThemedText style={styles.carDescription}>{car.description}</ThemedText>
+        <ThemedText style={styles.carName}>{car.brand_name} {car.model}</ThemedText>
+        <View style={styles.carDetails}>
+          <View style={styles.detailRow}>
+            <IconSymbol name="house.fill" size={16} color="#999" />
+            <ThemedText style={styles.detailText}>{car.brand_name}</ThemedText>
+          </View>
+          <View style={styles.detailRow}>
+            <IconSymbol name="calendar" size={16} color="#999" />
+            <ThemedText style={styles.detailText}>{car.year}</ThemedText>
+          </View>
+          <View style={styles.detailRow}>
+            <IconSymbol name="person.fill" size={16} color="#999" />
+            <ThemedText style={styles.detailText}>{car.seats} o'rindiq</ThemedText>
+          </View>
+        </View>
+        <ThemedText style={styles.carPrice}>{Number(car.price_per_day).toLocaleString()} so'm/kun</ThemedText>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <ThemedView style={styles.container}>
-      {/* Search Header */}
       <View style={styles.header}>
-        <View style={styles.searchContainer}>
-          <IconSymbol name="magnifyingglass" size={20} color="#666" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search cars..."
-            placeholderTextColor="#666"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        <ThemedText style={styles.appName}>Qidirish</ThemedText>
       </View>
 
-     
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Avtomobil qidirish..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={searchCars}
+          returnKeyType="search"
+        />
+        <TouchableOpacity style={styles.searchButton} onPress={searchCars}>
+          <IconSymbol name="magnifyingglass" size={20} color="#222" />
+        </TouchableOpacity>
+      </View>
 
-      {/* Car List */}
       <ScrollView 
         style={styles.carList}
         contentContainerStyle={styles.carListContent}
       >
-        {cars.map(renderCarCard)}
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#FFD600" />
+          </View>
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+          </View>
+        ) : cars.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <ThemedText style={styles.noDataText}>
+              {searchQuery ? 'Avtomobillar topilmadi' : 'Avtomobil qidiring'}
+            </ThemedText>
+          </View>
+        ) : (
+          cars.map(renderCarCard)
+        )}
       </ScrollView>
     </ThemedView>
   );
@@ -94,81 +178,83 @@ const styles = StyleSheet.create({
     backgroundColor: '#222',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 16,
     backgroundColor: '#222',
   },
+  appName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
   searchContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 12,
     paddingHorizontal: 16,
-  },
-  searchIcon: {
-    marginRight: 8,
+    paddingBottom: 16,
+    alignItems: 'center',
   },
   searchInput: {
     flex: 1,
-    height: 48,
-    color: '#fff',
-    fontSize: 16,
-  },
-  filtersContainer: {
-    maxHeight: 200,
-  },
-  filtersContent: {
-    paddingHorizontal: 16,
-  },
-  filterSection: {
-    marginBottom: 16,
-  },
-  filterLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    height: 46,
     backgroundColor: '#333',
-    marginRight: 8,
-  },
-  selectedFilterButton: {
-    backgroundColor: '#FFD600',
-  },
-  filterText: {
+    borderRadius: 23,
+    paddingHorizontal: 20,
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
+    marginRight: 10,
   },
-  selectedFilterText: {
-    color: '#222',
-    fontWeight: '600',
+  searchButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFD600',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 200,
+  },
+  errorText: {
+    color: '#FF4444',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  noDataText: {
+    color: '#999',
+    fontSize: 16,
+    textAlign: 'center',
   },
   carList: {
     flex: 1,
   },
   carListContent: {
-    padding: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    padding: 16,
   },
   carCard: {
-    backgroundColor: '#333',
+    backgroundColor: '#1C1C1E',
     borderRadius: 12,
     marginBottom: 16,
     overflow: 'hidden',
-    width: (width - 48) / 2,
-    marginHorizontal: 8,
+    width: width * 0.8, // Ekran enining 80%
+    alignSelf: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   carImage: {
     width: '100%',
-    height: 140,
+    height: 180,
     resizeMode: 'cover',
+    backgroundColor: '#444',
   },
   carInfo: {
     padding: 12,
@@ -177,17 +263,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 8,
+  },
+  carDetails: {
+    marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#999',
+    marginLeft: 6,
   },
   carPrice: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#FFD600',
     fontWeight: '600',
-    marginBottom: 4,
   },
-  carDescription: {
-    fontSize: 12,
-    color: '#ccc',
-    lineHeight: 16,
-  },
-}); 
+});

@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 type AuthContextType = {
   isAuthenticated: boolean;
@@ -20,35 +20,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuth = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
-      setIsAuthenticated(!!token);
-      if (!token) {
+      const userData = await AsyncStorage.getItem('userData');
+      
+      if (!token || !userData) {
+        setIsAuthenticated(false);
         router.replace('/login');
+        return;
       }
+
+      setIsAuthenticated(true);
     } catch (error) {
       console.error('Error checking auth:', error);
+      setIsAuthenticated(false);
       router.replace('/login');
     }
   };
 
   const login = async (token: string) => {
-    console.log('useAuth: login called with token:', token);
     try {
-      console.log('useAuth: saving token to AsyncStorage');
       await AsyncStorage.setItem('userToken', token);
-      console.log('useAuth: token saved successfully');
       setIsAuthenticated(true);
-      console.log('useAuth: isAuthenticated set to true');
       router.replace('/(tabs)');
-      console.log('useAuth: navigation completed');
     } catch (error) {
       console.error('useAuth: error in login:', error);
+      alert('Login jarayonida xatolik yuz berdi');
     }
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem('userToken');
-    setIsAuthenticated(false);
-    router.replace('/login');
+    try {
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userData');
+      setIsAuthenticated(false);
+      router.replace('/login');
+    } catch (error) {
+      console.error('useAuth: error in logout:', error);
+      alert('Logout jarayonida xatolik yuz berdi');
+    }
   };
 
   return (
