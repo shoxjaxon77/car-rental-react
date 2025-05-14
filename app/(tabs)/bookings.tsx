@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl, Alert, Dimensions } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +37,9 @@ interface Booking {
   car: Car;
   start_date: string;
   end_date: string;
+  formatted_start_date: string;
+  formatted_end_date: string;
+  duration_days: number;
   status: string;
   status_display: string;
   total_price: string;
@@ -72,68 +74,129 @@ const getStatusColor = (status: string) => {
 
 const downloadContract = async (booking: Booking) => {
   try {
+    console.log('Booking data:', JSON.stringify(booking, null, 2));
+
     const token = await AsyncStorage.getItem('userToken');
     if (!token) {
       Alert.alert('Xatolik', 'Avtorizatsiyadan o\'tilmagan');
       return;
     }
 
-    console.log('Buyurtma ID:', booking.id);
+    if (!booking.contract?.id) {
+      Alert.alert('Xatolik', 'Shartnoma ma\'lumotlari topilmadi');
+      return;
+    }
 
-    // Avval shartnoma ma'lumotlarini olish
-    const contractsResponse = await axios.get(
-      `https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/contracts/`,
+    // Shartnomani yuklab olish uchun API so'rovi
+    const response = await axios.get(
+      `https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/contracts/${booking.contract.id}/download/`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        responseType: 'blob'
       }
     );
 
-    console.log('Barcha shartnomalar:', JSON.stringify(contractsResponse.data, null, 2));
+    // PDF faylni yuklab olish
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
 
-    // Buyurtmaga tegishli shartnomani topish
-    const contract = contractsResponse.data.find((c: any) => {
-      console.log('Tekshirilmoqda:', c.booking_id, booking.id, c.booking_id === booking.id);
-      return c.booking_id === booking.id;
-    });
-    
-    if (!contract) {
-      throw new Error('Shartnoma topilmadi');
-    }
+    // Yangi oynada PDF ni ochish
+    window.open(url, '_blank');
 
-    // Shartnoma faylini yuklash
-    const contractFileResponse = await axios.get(
-      `https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/contracts/${contract.id}/`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        responseType: 'blob',
-      }
-    );
+    // Vaqtinchalik URL ni tozalash
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+    }, 100);
 
-    if (!contractFileResponse.data) {
-      throw new Error('Shartnoma faylini yuklab bo\'lmadi');
-    }
-
-    // PDF faylni yuklash
-    const pdfBlob = new Blob([contractFileResponse.data], { type: 'application/pdf' });
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    
-    // Shartnomani brauzerda ochish
-    await WebBrowser.openBrowserAsync(pdfUrl);
-    console.log('Shartnoma muvaffaqiyatli yuklandi');
-
-    // URL ni tozalash
-    URL.revokeObjectURL(pdfUrl);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Shartnomani yuklashda xatolik:', error);
-    Alert.alert('Xatolik', 'Shartnomani yuklashda xatolik yuz berdi. Iltimos, qayta urinib ko\'ring');
+    if (error.response?.status === 403) {
+      Alert.alert('Xatolik', 'Sizda ushbu shartnomani yuklab olish uchun ruxsat yo\'q');
+    } else if (error.response?.status === 404) {
+      Alert.alert('Xatolik', 'Shartnoma mavjud emas');
+    } else {
+      Alert.alert('Xatolik', 'Shartnomani yuklab olishda xatolik yuz berdi. Iltimos, qayta urinib ko\'ring');
+    }
   }
 };
 
 const styles = StyleSheet.create({
+  carDetails: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#fff',
+    marginBottom: 8,
+  },
+  contractDownloadButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  contractDownloadButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  carName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  dateInfo: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#999',
+  },
+  dateValue: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  durationBadge: {
+    backgroundColor: '#FFD600',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  durationText: {
+    color: '#222',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -205,18 +268,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  carName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
+
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -272,12 +324,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flex: 1,
   },
-  dateLabel: {
+  dateLabelSecondary: {
     width: 75,
     color: '#999',
     fontSize: 13,
   },
-  dateValue: {
+  dateValueSecondary: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 13,
@@ -320,18 +372,49 @@ export default function BookingsPage() {
       }
 
       // Use your actual API URL
-      const apiUrl = 'https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/bookings/';
+      const apiUrl = 'https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/bookings/';
       console.log('API so\'rov yuborilmoqda:', apiUrl);
 
+      // Buyurtmalarni olish
       const response = await axios.get(apiUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
-      console.log('API javob:', JSON.stringify(response.data, null, 2));
-      console.log('Birinchi buyurtma:', JSON.stringify(response.data[0], null, 2));
-      setBookings(response.data);
+      console.log('Buyurtmalar olindi:', response.data.length);
+
+      // Har bir buyurtma uchun alohida shartnoma so'rovi yuborish
+      const bookingsWithContracts = await Promise.all(response.data.map(async (booking: any) => {
+        console.log(`Buyurtma ${booking.id} uchun ma'lumotlar:`, JSON.stringify(booking, null, 2));
+        
+        if (booking.status === 'accepted') {
+          try {
+            // Shartnomani olish
+            const contractResponse = await axios.get(
+              `https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/contracts/${booking.id}/`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              }
+            );
+            console.log(`Buyurtma ${booking.id} uchun shartnoma:`, JSON.stringify(contractResponse.data, null, 2));
+            return {
+              ...booking,
+              contract: contractResponse.data
+            };
+          } catch (error) {
+            console.log(`Buyurtma ${booking.id} uchun shartnoma topilmadi:`, error);
+            return booking;
+          }
+        }
+        return booking;
+      }));
+
+      console.log('API javob:', JSON.stringify(bookingsWithContracts, null, 2));
+      console.log('Birinchi buyurtma:', JSON.stringify(bookingsWithContracts[0], null, 2));
+      setBookings(bookingsWithContracts);
     } catch (error: any) {
       console.error('Buyurtmalarni yuklashda xatolik:', error);
       if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -362,11 +445,13 @@ export default function BookingsPage() {
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
+    // UTC vaqtni mahalliy vaqtga o'tkazish
+    const localDate = new Date(date.getTime() + (5 * 60 * 60 * 1000)); // UTC+5 uchun
+    const day = localDate.getDate().toString().padStart(2, '0');
+    const month = (localDate.getMonth() + 1).toString().padStart(2, '0');
+    const year = localDate.getFullYear();
+    const hours = localDate.getHours().toString().padStart(2, '0');
+    const minutes = localDate.getMinutes().toString().padStart(2, '0');
     
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   };
@@ -399,7 +484,7 @@ export default function BookingsPage() {
       
       {bookings.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>Buyurtmalar topilmadi</Text>
+          <Text style={styles.emptyStateText}>Hozircha buyurtmalar mavjud emas. Mashinani ijaraga olish uchun asosiy sahifaga o'ting.</Text>
           <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
             <Text style={styles.refreshButtonText}>Yangilash</Text>
           </TouchableOpacity>
@@ -415,42 +500,81 @@ export default function BookingsPage() {
             }}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.carName}>{booking.car.brand} {booking.car.model}</Text>
-              <View style={styles.statusContainer}>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status).bg, borderWidth: 1, borderColor: getStatusColor(booking.status).text }]}>
-                  <View style={[styles.statusDot, { backgroundColor: getStatusColor(booking.status).text }]} />
-                  <Text style={[styles.statusText, { color: getStatusColor(booking.status).text }]}>
-                    {booking.status_display}
-                  </Text>
-                </View>
-                {booking.status === 'qabul_qilindi' && (
-                  <TouchableOpacity 
-                    style={styles.downloadButton}
-                    onPress={() => downloadContract(booking)}
-                  >
-                    <IconSymbol name="chevron.left.forwardslash.chevron.right" size={18} color="#fff" />
-                  </TouchableOpacity>
-                )}
+              <Text style={styles.carName}>{booking.car.brand_name} {booking.car.model}</Text>
+            </View>
+
+            <View style={styles.dateInfo}>
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabelSecondary}>Boshlanish sanasi:</Text>
+                <Text style={styles.dateValueSecondary}>{booking.formatted_start_date}</Text>
+              </View>
+              
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabelSecondary}>Tugash sanasi:</Text>
+                <Text style={styles.dateValueSecondary}>{booking.formatted_end_date}</Text>
+              </View>
+
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>
+                  {booking.duration_days} kun
+                </Text>
               </View>
             </View>
-            
-            <View style={styles.dateContainer}>
-              <Text style={styles.dateLabel}>Yaratildi:</Text>
-              <Text style={styles.dateValue}>{formatDate(booking.created_at)}</Text>
+
+            <View
+              style={{
+                backgroundColor: getStatusColor(booking.status).bg,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8,
+                alignSelf: 'flex-start',
+                marginBottom: 12,
+              }}
+            >
+              <Text style={{ color: getStatusColor(booking.status).text, fontWeight: '500' }}>
+                {booking.status_display}
+              </Text>
             </View>
-            <View style={styles.dateContainer}>
-              <Text style={styles.dateLabel}>Boshlash:</Text>
-              <Text style={styles.dateValue}>{formatDate(booking.start_date)}</Text>
+
+            <Text style={{ color: '#FFD600', fontSize: 16, fontWeight: '600' }}>
+              Umumiy narx: {booking.total_price} so'm
+            </Text>
+
+            {/* Avtomobil ma'lumotlari */}
+            <View style={styles.carDetails}>
+              <Text style={styles.detailLabel}>Rangi:</Text>
+              <Text style={styles.detailValue}>{booking.car.color}</Text>
+              
+              <Text style={styles.detailLabel}>O'rindiqlar soni:</Text>
+              <Text style={styles.detailValue}>{booking.car.seats} ta</Text>
+              
+              <Text style={styles.detailLabel}>Transmissiya:</Text>
+              <Text style={styles.detailValue}>{booking.car.transmission}</Text>
+              
+              <Text style={styles.detailLabel}>Ishlab chiqarilgan yil:</Text>
+              <Text style={styles.detailValue}>{booking.car.year}</Text>
             </View>
-            <View style={styles.dateContainer}>
-              <Text style={styles.dateLabel}>Tugash:</Text>
-              <Text style={styles.dateValue}>{formatDate(booking.end_date)}</Text>
-            </View>
-            
-            <View style={styles.priceContainer}>
-              <Text style={styles.priceLabel}>Umumiy narx:</Text>
-              <Text style={styles.priceValue}>{booking.total_price.toLocaleString()} so'm</Text>
-            </View>
+
+            {/* Shartnoma yuklash tugmasi */}
+            {(() => {
+              console.log('Buyurtma statusi:', booking.status);
+              console.log('Buyurtma ma\'lumotlari:', JSON.stringify(booking, null, 2));
+              
+              if (booking.status === 'qabul_qilindi') {
+                return (
+                  <TouchableOpacity 
+                    style={styles.contractDownloadButton}
+                    onPress={() => {
+                      console.log('Shartnoma yuklab olish boshlandi');
+                      downloadContract(booking);
+                    }}
+                  >
+                    <Text style={styles.contractDownloadButtonText}>Shartnomani yuklab olish</Text>
+                  </TouchableOpacity>
+                );
+              }
+              return null;
+            })()}
           </TouchableOpacity>
         ))
       )}

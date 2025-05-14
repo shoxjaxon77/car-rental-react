@@ -163,7 +163,10 @@ export default function Payment() {
         Alert.alert(
           'Muvaffaqiyatli',
           'To\'lov amalga oshirildi va buyurtmangiz qabul qilindi. Buyurtmangiz admin tomonidan ko\'rib chiqiladi.',
-          [{ text: 'OK', onPress: () => router.push('/(tabs)') }]
+          [{ text: 'OK', onPress: () => {
+            console.log('Navigating to bookings...');
+            router.replace('/(tabs)');
+          }}]
         );
       } else {
         throw new Error(response.message || 'Buyurtma yaratishda xatolik');

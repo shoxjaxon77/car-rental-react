@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "car-rental-react",
+    "name": "Rental Car",
     "slug": "car-rental-react",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.shoxjaxon.carrent"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +38,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f6de4b60-ad04-423b-9005-7ab360b98183"
+      }
     }
   }
 }

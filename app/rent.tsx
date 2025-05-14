@@ -34,7 +34,7 @@ export default function RentScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [note, setNote] = useState('');
-  const companyAddress = "Toshkent sh., Chilonzor tumani, Bunyodkor ko'chasi, 15-uy";
+  const companyAddress = "Xorazm viloyati, Urganch shahri, Al-Xorazmiy ko'chasi, 110-uy, TATU Urganch filiali";
 
   useEffect(() => {
     if (id) {
