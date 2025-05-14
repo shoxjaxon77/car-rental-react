@@ -82,7 +82,7 @@ const downloadContract = async (booking: Booking) => {
 
     // Avval shartnoma ma'lumotlarini olish
     const contractsResponse = await axios.get(
-      `https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/contracts/`,
+      `https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/contracts/`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -104,7 +104,7 @@ const downloadContract = async (booking: Booking) => {
 
     // Shartnoma faylini yuklash
     const contractFileResponse = await axios.get(
-      `https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/contracts/${contract.id}/`,
+      `https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/contracts/${contract.id}/`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,

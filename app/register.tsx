@@ -47,7 +47,7 @@ export default function RegisterScreen() {
 
       // Ro'yxatdan o'tish
       console.log('Foydalanuvchi ro\'yxatdan o\'tmoqda:', { username, firstName, lastName, phoneNumber, email });
-      const registerResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/register/', {
+      const registerResponse = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/users/api/v1/register/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export default function RegisterScreen() {
       }
 
       // Login qilish
-      const loginResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/token/', {
+      const loginResponse = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/users/api/v1/token/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

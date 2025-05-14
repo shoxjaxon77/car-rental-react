@@ -53,7 +53,7 @@ export default function ProfileScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) throw new Error('Token topilmadi');
 
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/me/', {
+      const response = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/users/api/v1/me/', {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

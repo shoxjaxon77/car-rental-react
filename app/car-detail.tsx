@@ -42,7 +42,7 @@ export default function CarDetailScreen() {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      const response = await fetch(`https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/cars/${id}/`, {
+      const response = await fetch(`https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/cars/${id}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ export default function CarDetailScreen() {
       let brandName = '';
       if (data.brand) {
         try {
-          const brandResponse = await fetch(`https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/brands/${data.brand}/`, {
+          const brandResponse = await fetch(`https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/brands/${data.brand}/`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json',

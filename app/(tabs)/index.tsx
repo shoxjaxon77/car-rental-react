@@ -17,7 +17,7 @@ interface Car {
   year: number;
   seats: number;
   price_per_day: number;
-  image: string;
+  image: string | null;
   description: string;
 };
 
@@ -48,7 +48,7 @@ export default function HomeScreen() {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/brands/', {
+      const response = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/brands/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ export default function HomeScreen() {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/cars/', {
+      const response = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/cars/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -166,6 +166,8 @@ export default function HomeScreen() {
 
       const data = await response.json();
       
+      console.log('API dan kelgan mashinalar:', JSON.stringify(data, null, 2));
+      
       if (Array.isArray(data)) {
         // API dan kelgan ma'lumotlarni Car tipiga moslashtirish
         const formattedCars: Car[] = data.map((car: any) => ({
@@ -177,7 +179,7 @@ export default function HomeScreen() {
           year: parseInt(car.year) || 0,
           seats: parseInt(car.seats) || 0,
           price_per_day: parseFloat(car.price_per_day) || 0,
-          image: car.image || '',
+          image: car.photo || null,
           description: car.description || ''
         }));
         
@@ -221,8 +223,10 @@ export default function HomeScreen() {
       onPress={() => handleCarPress(car.id)}
     >
       <Image
-        source={{ uri: car.image }}
+        source={car.image ? { uri: car.image } : require('../../assets/images/default-car.jpg')}
         style={styles.carImage}
+        resizeMode="cover"
+        onError={(error) => console.log('Rasm yuklashda xatolik:', error.nativeEvent.error)}
       />
       <View style={styles.carInfo}>
         <ThemedText style={styles.carName}>{car.brand_name} {car.model}</ThemedText>

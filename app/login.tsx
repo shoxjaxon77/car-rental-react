@@ -24,7 +24,7 @@ export default function LoginScreen() {
       // Login qilish va token olish
       console.log('Login ma\'lumotlari:', { username });
       
-      const loginResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/token/', {
+      const loginResponse = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/users/api/v1/token/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ export default function LoginScreen() {
       console.log('Token olingan:', token ? 'Ha' : 'Yo\'q');
 
       // Foydalanuvchi ma'lumotlarini olish
-      const userResponse = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/users/api/v1/me/', {
+      const userResponse = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/users/api/v1/me/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

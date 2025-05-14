@@ -43,7 +43,7 @@ export default function SearchScreen() {
         throw new Error('Avtorizatsiyadan o\'tilmagan');
       }
 
-      const response = await fetch('https://car-rental-api-gyfw.onrender.com/api/v1/cars/api/v1/cars/', {
+      const response = await fetch('https://car-rental-api-aeh4.onrender.com/api/v1/cars/api/v1/cars/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

@@ -17,7 +17,7 @@ interface BookingData {
   };
 }
 
-const API_URL = 'https://car-rental-api-gyfw.onrender.com';
+const API_URL = 'https://car-rental-api-aeh4.onrender.com';
 
 export const getAuthenticatedApi = async (): Promise<AxiosInstance> => {
   const token = await AsyncStorage.getItem('userToken');
@@ -101,7 +101,7 @@ export const createBooking = async (bookingData: BookingData) => {
 };
 
 const axiosInstance = axios.create({
-  baseURL: 'https://car-rental-api-gyfw.onrender.com',
+  baseURL: 'https://car-rental-api-aeh4.onrender.com',
   headers: {
     'Content-Type': 'application/json',
   },
